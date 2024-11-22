@@ -1,20 +1,22 @@
-"""Database module for user authentication service.
+
+#!/usr/bin/env python3
+"""
+DB module
 """
 from sqlalchemy import create_engine, tuple_
-from sqlalchemy.exc import InvalidRequestError
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
+from sqlalchemy.exc import NoResultFound, InvalidRequestError
+
 from user import Base, User
 
 
 class DB:
-    """Database class for managing user data.
+    """DB class
     """
 
     def __init__(self) -> None:
-        """Initialize a new instance of the DB class.
+        """Initialize a new DB instance
         """
         self._engine = create_engine("sqlite:///a.db", echo=False)
         Base.metadata.drop_all(self._engine)
@@ -22,8 +24,8 @@ class DB:
         self.__session = None
 
     @property
-    def session(self) -> Session:
-        """Create and return a session object.
+    def _session(self) -> Session:
+        """Memoized session object
         """
         if self.__session is None:
             DBSession = sessionmaker(bind=self._engine)
@@ -31,19 +33,19 @@ class DB:
         return self.__session
 
     def add_user(self, email: str, hashed_password: str) -> User:
-        """Add a new user to the database.
+        """Create a user
         """
         try:
             user = User(email=email, hashed_password=hashed_password)
-            self.session.add(user)
-            self.session.commit()
+            self._session.add(user)
+            self._session.commit()
         except Exception:
-            self.session.rollback()
+            self._session.rollback()
             user = None
         return user
 
     def find_user_by(self, **kwargs) -> User:
-        """Find a user in the database by specified attributes.
+        """Find a user
         """
         fields, values = [], []
         for key, value in kwargs.items():
@@ -52,27 +54,30 @@ class DB:
                 values.append(value)
             else:
                 raise InvalidRequestError()
-        result = self.session.query(User).filter(
+        result = self._session.query(User).filter(
             tuple_(*fields).in_([tuple(values)])
         ).first()
         if result is None:
             raise NoResultFound()
         return result
-
-    def update_user(self, user_id: int, **kwargs) -> None:
-        """Update a user's attributes in the database.
+    
+    def update_user(self, user_id:int, **kwargs):
+        """Update a a user
         """
-        user = self.find_user_by(id=user_id)
-        if user is None:
+        if not user_id:
             return
-        update_source = {}
+        user = self.find_user_by(id=user_id)
+        if not user:
+            return
+        updated = {}
         for key, value in kwargs.items():
             if hasattr(User, key):
-                update_source[getattr(User, key)] = value
+                updated[getattr(User, key)] = value
             else:
                 raise ValueError()
-        self.session.query(User).filter(User.id == user_id).update(
-            update_source,
+        self._session.query(User).filter(User.id == user_id).update(
+            updated,
             synchronize_session=False,
         )
-        self.session.commit()
+        self._session.commit()
+
